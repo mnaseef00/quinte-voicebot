@@ -1,0 +1,32 @@
+{
+    "customers": [
+        {
+            "customer_id": "1001",
+            "full_name": "Mohammed Naseef",
+            "phone_number": "9876543210",
+            "email": "mohammed.n@ampcome.com",
+            "account_status": "active"
+        },
+        {
+            "customer_id": "1002",
+            "full_name": "ABC",
+            "phone_number": "123",
+            "email": "abctest@gmail.com",
+            "account_status": "active"
+        },
+        {
+            "customer_id": "1003",
+            "full_name": "Jane Smith",
+            "phone_number": "2288534567",
+            "email": "janesmithtst@gmail.com",
+            "account_status": "active"
+        },
+        {
+            "customer_id": "1004",
+            "full_name": "John Doe",
+            "phone_number": "189",
+            "email": "johndoe@gmail.com",
+            "account_status": "active"
+        }
+    ]
+}

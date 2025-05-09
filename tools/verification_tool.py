@@ -1,3 +1,5 @@
+import os
+import json
 from agents import function_tool
 
 @function_tool(
@@ -50,41 +52,22 @@ def verification_tool(phone_number: str, customer_id: str | None = None, answer:
         cleaned_answer = clean_string(answer)
     # ----------------------
 
-    # Sample security questions database
-    security_questions = {
-        "1001": {"question": "Who is your childhood friend?", "answer": "alex"},
-        "1002": {"question": "What is your favorite color?", "answer": "white"},
-        "1003": {"question": "What is your favorite bird?", "answer": "parrot"},
-        "1004": {"question": "What is your mother's maiden name?", "answer": "smith"}
-    }
-
-    # Sample local database (hardcoded) with simplified structure
-    customers = [
-        {
-            "customer_id": "1001",
-            "full_name": "Mohammed Naseef",
-            "phone_number": "9876543210",
-            "email": "mohammed.n@ampcome.com"
-        },
-        {
-            "customer_id": "1002",
-            "full_name": "ABC",
-            "phone_number": "123",
-            "email": "abctest@gmail.com"
-        },
-        {
-            "customer_id": "1003",
-            "full_name": "Jane Smith",
-            "phone_number": "2288534567",
-            "email": "janesmithtst@gmail.com"
-        },
-        {
-            "customer_id": "1004",
-            "full_name": "John Doe",
-            "phone_number": "189",
-            "email": "johndoe@gmail.com"
-        }
-    ]
+    # Get the directory of the current script
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Load security questions from JSON file
+    security_questions_path = os.path.join(base_dir, 'assets', 'security_questions.json')
+    with open(security_questions_path, 'r') as f:
+        security_questions_data = json.load(f)
+        security_questions = security_questions_data.get('security_questions', {})
+    
+    # Load customers from JSON file
+    customers_path = os.path.join(base_dir, 'assets', 'customers.json')
+    with open(customers_path, 'r') as f:
+        customers_data = json.load(f)
+        customers = customers_data.get('customers', [])
+        
+    print(f"Successfully loaded data from JSON files")
 
     # Find the customer by phone number and customer ID
     found_customer_record = None
@@ -103,6 +86,20 @@ def verification_tool(phone_number: str, customer_id: str | None = None, answer:
         print(f"Returning: {result}")
         return result
 
+    # Ensure account_status exists, default to 'active' if not present
+    if "account_status" not in found_customer_record:
+        found_customer_record["account_status"] = "active"
+    
+    # Check if account is active
+    if found_customer_record["account_status"].lower() != "active":
+        print(f"--- ACCOUNT NOT ACTIVE: {found_customer_record['account_status']} ---")
+        result = {
+            "status": "verification_failed",
+            "message": f"Account is not active. Current status: {found_customer_record['account_status']}"
+        }
+        print(f"Returning: {result}")
+        return result
+        
     customer_id = found_customer_record["customer_id"]
     
     # Check if security question exists for this customer
@@ -144,10 +141,29 @@ def verification_tool(phone_number: str, customer_id: str | None = None, answer:
             print(f"Returning: {result}")
             return result
         else:
-            print("--- ANSWER INCORRECT ---")
+            print("--- ANSWER INCORRECT - FREEZING ACCOUNT ---")
+            
+            # Update account status to 'freezed' in memory
+            found_customer_record["account_status"] = "freezed"
+            
+            # Update the account status in the JSON file
+            for i, customer in enumerate(customers):
+                if customer["customer_id"] == found_customer_record["customer_id"]:
+                    customers[i]["account_status"] = "freezed"
+                    break
+            
+            # Write the updated data back to the JSON file
+            try:
+                customers_path = os.path.join(base_dir, 'assets', 'customers.json')
+                with open(customers_path, 'w') as f:
+                    json.dump({"customers": customers}, f, indent=4)
+                print("--- ACCOUNT STATUS UPDATED TO 'freezed' IN DATABASE ---")
+            except Exception as e:
+                print(f"--- ERROR UPDATING ACCOUNT STATUS: {e} ---")
+            
             result = {
                 "status": "verification_failed", 
-                "message": "The answer provided was incorrect."
+                "message": "The answer provided was incorrect. Your account has been frozen for security reasons."
             }
             print(f"Returning: {result}")
             return result
