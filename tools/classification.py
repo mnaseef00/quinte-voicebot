@@ -1,13 +1,12 @@
-import os
-import openai
+
 from openai import OpenAI
 import json
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from agents import function_tool
 
 load_dotenv()  # Optional, if using .env file
 client = OpenAI()
+
 
 class Classification(BaseModel):
     priority: str
@@ -16,7 +15,7 @@ class Classification(BaseModel):
     confidence_score: float | None = None
 
 
-prompt ="""
+prompt = """
 You are an AI assistant tasked with classifying customer emails for a financial institution. Your
 goal is to determine the priority level and assign appropriate tags to each email based on its
 content. Here's how to proceed:
@@ -162,11 +161,6 @@ ensure important issues are not overlooked.
 """
 
 
-@function_tool(
-    name_override="classify_email_priority",
-    description_override="Classifies an email based on priority and assigns tags based on content.",
-    strict_mode=True
-)
 def classify_email(email_content: str) -> dict:
     """
     Classify a customer email by priority level and assign relevant tags.
@@ -178,24 +172,26 @@ def classify_email(email_content: str) -> dict:
         dict: A dictionary containing classification with priority, tags, justification, and optional confidence.
     """
 
-    print(f"OpenAI API Key Loaded: {bool(client.api_key)}") # Check if API key is perceived by the client
+    print(
+        f"OpenAI API Key Loaded: {bool(client.api_key)}"
+    )  # Check if API key is perceived by the client
     print("=" * 50)
     print("::::[TOOL CALLED] EMAIL CLASSIFICATION TOOL::::")
     print(f"Email Content:\n{email_content}")
     print("=" * 50)
 
     try:
-        response = client.chat.completions.create( 
+        response = client.chat.completions.create(
             model="gpt-4o",
             temperature=0.8,
             messages=[
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": email_content}
-            ]
+                {"role": "user", "content": email_content},
+            ],
         )
-        content = response.choices[0].message.content # Correct way to get content
-        print(f"Raw response:\n{content}") 
-        
+        content = response.choices[0].message.content  # Correct way to get content
+        print(f"Raw response:\n{content}")
+
         # Parse the JSON string and extract the nested 'classification' object
         data = json.loads(content)
         classification_data = data.get("classification")
@@ -204,11 +200,16 @@ def classify_email(email_content: str) -> dict:
             print("Error: 'classification' key not found in AI response.")
             return {"error": "AI response missing 'classification' key."}
 
-        result = Classification.model_validate(classification_data) # Validate the nested dictionary
-        print(f"Analyzed Result from classification tool: {result}") 
+        result = Classification.model_validate(
+            classification_data
+        )  # Validate the nested dictionary
+        print(f"Analyzed Result from classification tool: {result}")
         return result.model_dump()
     except Exception as e:
-        print(f"Error during classification: {type(e).__name__} - {e}") # Print exception type and message
+        print(
+            f"Error during classification: {type(e).__name__} - {e}"
+        )  # Print exception type and message
         import traceback
-        traceback.print_exc() # Print full traceback
+
+        traceback.print_exc()  # Print full traceback
         return {"error": str(e)}

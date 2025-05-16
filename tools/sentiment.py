@@ -1,8 +1,5 @@
-import os
-import openai
 from openai import OpenAI
 from pydantic import BaseModel
-from agents import function_tool
 
 
 # Initialize OpenAI client
@@ -129,10 +126,12 @@ Example Output:
 #NO MARKDOWN ALLOWED
 """
 
+
 # Pydantic Models
 class EmotionalIndicators(BaseModel):
     frustration_level: str
     satisfaction: str
+
 
 class SentimentAnalysis(BaseModel):
     sentiment_score: float
@@ -140,11 +139,7 @@ class SentimentAnalysis(BaseModel):
     emotional_indicators: EmotionalIndicators
     context_notes: str
 
-@function_tool(
-    name_override="analyze_sentiment_email",
-    description_override="Analyze the sentiment of a customer banking email and return emotional indicators.",
-    strict_mode=True
-)
+
 def analyze_sentiment_email(email_text: str) -> dict:
     """
     Analyze customer banking email and return detailed sentiment insights.
@@ -155,32 +150,37 @@ def analyze_sentiment_email(email_text: str) -> dict:
     Returns:
         Dictionary with sentiment analysis including score, tone, and emotional indicators.
     """
-    print(f"OpenAI API Key Loaded: {bool(client.api_key)}") # Check if API key is perceived by the client
+    print(
+        f"OpenAI API Key Loaded: {bool(client.api_key)}"
+    )  # Check if API key is perceived by the client
     print("=" * 50)
     print("::::[TOOL CALLED] ANALYZE EMAIL SENTIMENT::::")
     print(f"Email Text:: {email_text}")
     print("=" * 50)
 
     try:
-        response = client.chat.completions.create( 
+        response = client.chat.completions.create(
             model="gpt-4o",
             temperature=0.8,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": email_text}
-            ]
+                {"role": "user", "content": email_text},
+            ],
         )
 
-        content = response.choices[0].message.content # Correct way to get content
+        content = response.choices[0].message.content  # Correct way to get content
         print("Model Response:", content)
 
         # Parse JSON result from model response
         result = SentimentAnalysis.model_validate_json(content)
-        print(f"Analyzed Result from sentiment tool: {result}") 
+        print(f"Analyzed Result from sentiment tool: {result}")
         return result.model_dump()
 
     except Exception as e:
-        print(f"Error during sentiment analysis: {type(e).__name__} - {e}") # Print exception type and message
+        print(
+            f"Error during sentiment analysis: {type(e).__name__} - {e}"
+        )  # Print exception type and message
         import traceback
-        traceback.print_exc() # Print full traceback
+
+        traceback.print_exc()  # Print full traceback
         return {"error": str(e)}

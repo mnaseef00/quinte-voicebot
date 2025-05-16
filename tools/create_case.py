@@ -1,4 +1,3 @@
-from agents import function_tool
 import os
 import requests
 from simple_salesforce import Salesforce
@@ -6,11 +5,7 @@ import base64
 from urllib.parse import urlparse
 from datetime import datetime
 
-@function_tool(
-    name_override="create_case",
-    description_override="Create a Salesforce case with provided subject, phone number, body, disputed amount, and description.",
-    strict_mode=True
-)
+
 def create_case(
     subject: str,
     contact_phone: str,
@@ -31,7 +26,7 @@ def create_case(
         disputed_amount: Optional disputed amount in numbers only (no currency symbol).
         description: Optional detailed case description.
     """
-    print("="*50)
+    print("=" * 50)
     print("::::[TOOL CALLED] CREATE CASE::::")
     print(f"Subject: {subject}")
     print(f"Contact Phone: {contact_phone}")
@@ -41,7 +36,7 @@ def create_case(
     print(f"AI Summary Content: {ai_summary_content}")
     print(f"Priority: {priority}")
     print(f"Request Type: {request_type}")
-    print("="*50)
+    print("=" * 50)
 
     def get_connection_credentials(connection_id: str, providerConfigKey: str):
         base_url = os.getenv("NANGO_BASE_URL")
@@ -81,10 +76,10 @@ Subject: {subject}
         "Status": "Pending",
         "Request_Subject_Name__c": subject,
         "Disputed_Amount__c": str(disputed_amount) if disputed_amount else None,
-        "Comments": format_internal_comments(subject,body),
+        "Comments": format_internal_comments(subject, body),
         "Assigned_To__c": "005dM00000BANfRQAX",
     }
-    
+
     if ai_summary_content is not None:
         case_data["AI_Summary_Content__c"] = ai_summary_content
     if priority is not None:

@@ -1,13 +1,8 @@
 import os
 import requests
 from simple_salesforce import Salesforce
-from agents import function_tool
 
-@function_tool(
-    name_override="get_case_by_number",
-    description_override="Retrieve a Salesforce case by its case number.",
-    strict_mode=True
-)
+
 def get_case(case_number: str) -> dict:
     """
     Retrieves a case record based on the provided case number.

@@ -1,23 +1,19 @@
-from agents import function_tool
 from pydantic import BaseModel
 import os
 import requests
 from simple_salesforce import Salesforce
 
+
 class EmailContentModel(BaseModel):
     subject: str | None = None
-    body: str | None = None 
+    body: str | None = None
     # Add other expected fields if necessary, e.g., to: list[str] | None, from_address: str | None
-    
+
     model_config = {
         "extra": "forbid"  # This ensures additionalProperties: false in the JSON schema
     }
 
-@function_tool(
-    name_override="update_salesforce_case",
-    description_override="Update a Salesforce case by its case number. Only the provided fields will be updated.",
-    strict_mode=True
-)
+
 def update_case(
     case_number: str,
     ai_summary_content: str | None = None,
@@ -103,7 +99,7 @@ def update_case(
             try:
                 update_data["EmailContent__c"] = email_content.model_dump_json()
             except TypeError as e:
-                print(f"Error serializing EmailContentModel: {e}") 
+                print(f"Error serializing EmailContentModel: {e}")
                 return {"error": f"Failed to serialize email_content to JSON: {e}"}
 
         if not update_data:

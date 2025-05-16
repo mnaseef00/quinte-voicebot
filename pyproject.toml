@@ -5,10 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "loguru>=0.7.3",
     "openai>=1.77.0",
     "openai-agents[voice]>=0.0.14",
     "pydantic>=2.11.4",
     "python-dotenv>=1.1.0",
     "simple-salesforce>=1.12.6",
     "sounddevice>=0.5.1",
+    "twilio>=9.6.1",
 ]
