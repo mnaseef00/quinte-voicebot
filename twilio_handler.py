@@ -152,8 +152,8 @@ async def initialize_session(openai_ws):
             "modalities": ["text", "audio"],
             "temperature": 0.6,
             "tools": function_call_manager.tool_defs(),
-            "input_audio_noise_reduction": {
-                "type": "near_field"
+            "input_audio_transcription": {
+                "model": "whisper-1"
             },
             "include": [ 
                 "item.input_audio_transcription.logprobs",
@@ -208,9 +208,15 @@ async def handle_media_stream(websocket: WebSocket):
         "OpenAI-Beta": "realtime=v1",
     }
 
+    # Conversation history for both user and agent
+    conversation_history = []
+    def print_conversation_history():
+        logger.info("Current Conversation History:")
+        logger.info(json.dumps(conversation_history, indent=2))
+
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect(
-            "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01",
+            "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
             headers=headers,
         ) as openai_ws:
             await initialize_session(openai_ws)
@@ -284,6 +290,31 @@ async def handle_media_stream(websocket: WebSocket):
                                 if response.get("item_id"):
                                     last_assistant_item = response["item_id"]
                                 await send_mark(websocket, stream_sid)
+
+                            if response["type"] == "response.done":
+                                outputs = response["response"]["output"]
+                                for item in outputs:
+                                    if item["type"] == "message":
+                                        for content in item["content"]:
+                                            if content["type"] == "audio":
+                                                transcript = content.get("transcript", "")
+                                                if transcript:
+                                                    conversation_history.append({"agent": transcript})
+                                                    print_conversation_history()
+
+                            # --- Handle OpenAI transcription events ---
+                            if response.get("type") == "conversation.item.input_audio_transcription.delta":
+                                # Print/log partial (incremental) user transcript
+                                partial = response.get("delta", "")
+                                logger.info(f"[User partial transcript] {partial}")
+
+                            if response.get("type") == "conversation.item.input_audio_transcription.completed":
+                                # Print/log final user transcript and add to conversation history
+                                transcript = response.get("transcript", "")
+                                logger.info(f"[User final transcript] {transcript}")
+                                if transcript:
+                                    conversation_history.append({"user": transcript})
+                                    print_conversation_history()
 
                             # --- Function calling support ---
                             if response.get("type") == "response.done":
