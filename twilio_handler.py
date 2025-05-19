@@ -53,10 +53,12 @@ async def initialize_session(openai_ws):
 ### 2. Customer ID Verification Processing
 * If `verification_step1.status` is `"customer_not_found"`:
   * Say: "I'm sorry, but I couldn't find an account associated with this customer ID. Please contact our customer support team during business hours for assistance."
+  * Invoke `hangup_call` tool to end the call.
   * (END verification - FAILED)
 
 * If `verification_step1.status` is `"invalid_input"`:
   * Say: "It seems there was an issue verifying your identity. Please contact our customer support team during business hours for assistance."
+  * Invoke `hangup_call` tool to end the call.
   * (END verification - FAILED)
 
 * If `verification_step1.status` is `"security_question_provided"`:
@@ -73,6 +75,7 @@ async def initialize_session(openai_ws):
 
 * If user indicates they are not sure, don't know, or requests to skip:
   * Say: "I understand you're not able to answer this security question. For security reasons, I cannot proceed without verification. Please contact our customer support team during business hours for assistance."
+  * Invoke `hangup_call` tool to end the call.
   * (END verification - FAILED)
 
 * Invoke `verification_tool` with `customer_id` and `user_answer` immediately after the answer is provided.
@@ -81,6 +84,7 @@ async def initialize_session(openai_ws):
 ### 4. Final Verification Processing
 * If `verification_step2.status` is `"verification_failed"`:
   * Say: "I'm sorry, I couldn't verify your identity based on the answer provided. For security reasons, we can't proceed further. Please contact our customer support team during business hours for assistance. If your account has been frozen, they will help you restore access."
+  * Invoke `hangup_call` tool to end the call.
   * (END verification - FAILED)
 
 * If `verification_step2.status` is `"invalid_input"`:
@@ -124,6 +128,7 @@ async def initialize_session(openai_ws):
 * If the user indicates they do not need any more help:
     * Ask: "How would you rate this interaction from 1 to 5?"
     * After receiving the rating, thank the user for their feedback.
+    * Invoke the `hangup_call` tool to end the call.
 
     """
     VOICE = "sage"
@@ -134,7 +139,7 @@ async def initialize_session(openai_ws):
             "turn_detection": {
                 "type": "server_vad",
                 "create_response": True,  # only in conversation mode
-                "interrupt_response": True,  # only in conversation mode
+                "interrupt_response": False,  # only in conversation mode
             },
             "input_audio_format": "g711_ulaw",
             "output_audio_format": "g711_ulaw",
@@ -146,6 +151,9 @@ async def initialize_session(openai_ws):
             "input_audio_transcription": {
                 "model": "gpt-4o-mini-transcribe",
                 "language": "en",
+            },
+            "input_audio_noise_reduction": {
+                "type": "near_field"
             },
             "include": [ 
                 "item.input_audio_transcription.logprobs",
@@ -207,20 +215,23 @@ async def handle_media_stream(websocket: WebSocket):
         logger.info(json.dumps(conversation_history, indent=2))
 
     async with aiohttp.ClientSession() as session:
+        openai_ws_url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17"
+        logger.info(f"Connecting to OpenAI WebSocket: {openai_ws_url}")
         async with session.ws_connect(
-            "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
+            openai_ws_url,
             headers=headers,
         ) as openai_ws:
             await initialize_session(openai_ws)
             # Session state
             stream_sid = None
+            incoming_call_sid = None  
             latest_media_timestamp = 0
             last_assistant_item = None
             mark_queue = []
             response_start_timestamp_twilio = None
 
             async def receive_from_twilio():
-                nonlocal stream_sid, latest_media_timestamp, last_assistant_item, response_start_timestamp_twilio
+                nonlocal stream_sid, latest_media_timestamp, last_assistant_item, response_start_timestamp_twilio, incoming_call_sid
                 try:
                     async for message in websocket.iter_text():
                         data = json.loads(message)
@@ -233,8 +244,10 @@ async def handle_media_stream(websocket: WebSocket):
                             }
                             await openai_ws.send_str(json.dumps(audio_append))
                         elif data["event"] == "start":
-                            stream_sid = data["start"]["streamSid"]
-                            logger.info(f"Incoming stream has started {stream_sid}")
+                            logger.info(f"Start event data: {json.dumps(data, indent=2)}")
+                            stream_sid = data["start"].get("streamSid")
+                            incoming_call_sid = data["start"].get("callSid")
+                            logger.info(f"Incoming stream has started. Stream SID: {stream_sid}, Call SID: {incoming_call_sid}")
                             response_start_timestamp_twilio = None
                             latest_media_timestamp = 0
                             last_assistant_item = None
@@ -327,6 +340,9 @@ async def handle_media_stream(websocket: WebSocket):
                                         # Add conversation history to the arguments if it's the create_case function
                                         if fn_name == 'create_case':
                                             args['conversation_history'] = conversation_history
+                                        # Add call_sid to hangup_call arguments if available
+                                        elif fn_name == 'hangup_call':
+                                            args['call_sid'] = incoming_call_sid
                                         
                                         result = (
                                             await function_call_manager.call_function(
