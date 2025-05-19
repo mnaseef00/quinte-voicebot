@@ -40,18 +40,20 @@ def create_case(
     print(f"Conversation History: {conversation_history}")
     print("=" * 50)
 
-    def get_connection_credentials(connection_id: str, providerConfigKey: str):
-        base_url = os.getenv("NANGO_BASE_URL")
-        secret_key = os.getenv("NANGO_SECRET_KEY")
-        url = f"{base_url}/connection/{connection_id}"
-        params = {
-            "provider_config_key": providerConfigKey,
-            "refresh_token": "true",
-        }
-        headers = {"Authorization": f"Bearer {secret_key}"}
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        return response.json()
+    # def get_connection_credentials(connection_id: str, providerConfigKey: str):
+    #     base_url = os.getenv("NANGO_BASE_URL")
+    #     secret_key = os.getenv("NANGO_SECRET_KEY")
+    #     url = f"{base_url}/connection/{connection_id}"
+    #     params = {
+    #         "provider_config_key": providerConfigKey,
+    #         "refresh_token": "true",
+    #     }
+    #     headers = {"Authorization": f"Bearer {secret_key}"}
+    #     response = requests.get(url, headers=headers, params=params)
+    #     response.raise_for_status()
+    #     return response.json()
+
+
 
     def format_internal_comments(subject: str, conversation_history) -> str:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -64,11 +66,15 @@ Conversation History:
 """
 
     # Authenticate with Salesforce
-    instance_url = os.getenv("SALESFORCE_INSTANCE_URL")
-    salesforce_connection_id = os.getenv("SALESFORCE_CONNECTION_ID")
-    credentials = get_connection_credentials(salesforce_connection_id, "salesforce")
-    access_token = credentials["credentials"]["access_token"]
-    sf = Salesforce(instance_url=instance_url, session_id=access_token)
+    # instance_url = os.getenv("SALESFORCE_INSTANCE_URL")
+    # salesforce_connection_id = os.getenv("SALESFORCE_CONNECTION_ID")
+    # credentials = get_connection_credentials(salesforce_connection_id, "salesforce")
+    # access_token = credentials["credentials"]["access_token"]
+    # sf = Salesforce(instance_url=instance_url, session_id=access_token)
+    username = os.getenv("SALESFORCE_USERNAME")
+    password = os.getenv("SALESFORCE_PASSWORD")
+    security_token = os.getenv("SALESFORCE_SECURITY_TOKEN")
+    sf = Salesforce(username=username, password=password, security_token=security_token)
 
     # Prepare case data
     case_data = {
