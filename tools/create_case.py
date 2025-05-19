@@ -9,12 +9,13 @@ from datetime import datetime
 def create_case(
     subject: str,
     contact_phone: str,
-    body: str,
+    body: str | None = None,
     disputed_amount: float | None = None,
     description: str | None = None,
     ai_summary_content: str | None = None,
     priority: str | None = None,
     request_type: str | None = None,
+    conversation_history: list | None = None,
 ) -> dict:
     """
     Creates a case record based on the provided details.
@@ -36,6 +37,7 @@ def create_case(
     print(f"AI Summary Content: {ai_summary_content}")
     print(f"Priority: {priority}")
     print(f"Request Type: {request_type}")
+    print(f"Conversation History: {conversation_history}")
     print("=" * 50)
 
     def get_connection_credentials(connection_id: str, providerConfigKey: str):
@@ -51,13 +53,14 @@ def create_case(
         response.raise_for_status()
         return response.json()
 
-    def format_internal_comments(subject: str, body: str) -> str:
+    def format_internal_comments(subject: str, conversation_history) -> str:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return f"""
-Original Complaint (Received through Voicebot: {timestamp})
+Original Complaint (Received through phone call: {timestamp})
 ----------------------------------------
 Subject: {subject}
-{body}
+Conversation History:
+{conversation_history}
 """
 
     # Authenticate with Salesforce
@@ -72,11 +75,11 @@ Subject: {subject}
         "Subject": subject,
         "Description": description,
         "SuppliedPhone": contact_phone,
-        "Origin": "Web",
+        "Origin": "Phone",
         "Status": "Pending",
         "Request_Subject_Name__c": subject,
         "Disputed_Amount__c": str(disputed_amount) if disputed_amount else None,
-        "Comments": format_internal_comments(subject, body),
+        "Comments": format_internal_comments(subject, conversation_history),
         "Assigned_To__c": "005dM00000BANfRQAX",
     }
 

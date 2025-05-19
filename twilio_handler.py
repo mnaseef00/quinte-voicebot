@@ -41,7 +41,7 @@ async def handle_incoming_call(request: Request):
 async def initialize_session(openai_ws):
     """Control initial session with OpenAI."""
 
-    SYSTEM_MESSAGE = """
+    SYSTEM_MESSAGE = f"""
 ## Complete Customer Support Workflow
 
 ### 1. Initial Greeting and Customer ID Collection
@@ -114,18 +114,9 @@ async def initialize_session(openai_ws):
                 * Ask: "Is there anything else I can help you with?"
         * If no:
             * Tell the user: "I'll help you create a new ticket. Please hold on while I'm creating the ticket."
-            * Invoke the `classify_email` tool with the complete issue details provided by the user as `email_content`.
-            * Invoke the `analyze_sentiment_email` tool with the same `email_content`.
-            * Invoke the `generate_case_summary` tool, passing:
-                - The result from `analyze_sentiment_email` as `sentiment_analysis`.
-                - The result from `classify_email` as `classification`.
-                - The complete issue details provided by the user as `users_description`.
             * Invoke the `create_case` tool, passing:
-                - Use the details provided by the user as the `subject` (create a subject of the ticket from users description) and `body` (create a body of the ticket from users description),
+                - Use the details provided by the user as the `subject` (create a subject of the ticket from users description),
                 - Use the verified `contact_phone` (this is the `phone_number` collected during successful verification), and pass any mentioned monetary value as `disputed_amount` (as a number/double)
-                - The result from `generate_case_summary` as `ai_summary_content`.
-                - The priority from `classify_email` as `priority`
-                - Choose best tags from `classify_email` as `request_type`
             * Inform the user: "I've created a new ticket for you. Let me know when you are ready to note down the number."
 * Do NOT provide or mention the ticket number until the user has confirmed they are ready.
 * When the user confirms they are ready, provide the ticket number.
@@ -143,7 +134,7 @@ async def initialize_session(openai_ws):
             "turn_detection": {
                 "type": "server_vad",
                 "create_response": True,  # only in conversation mode
-                "interrupt_response": False,  # only in conversation mode
+                "interrupt_response": True,  # only in conversation mode
             },
             "input_audio_format": "g711_ulaw",
             "output_audio_format": "g711_ulaw",
@@ -153,7 +144,8 @@ async def initialize_session(openai_ws):
             "temperature": 0.6,
             "tools": function_call_manager.tool_defs(),
             "input_audio_transcription": {
-                "model": "whisper-1"
+                "model": "gpt-4o-mini-transcribe",
+                "language": "en",
             },
             "include": [ 
                 "item.input_audio_transcription.logprobs",
@@ -304,12 +296,12 @@ async def handle_media_stream(websocket: WebSocket):
 
                             # --- Handle OpenAI transcription events ---
                             if response.get("type") == "conversation.item.input_audio_transcription.delta":
-                                # Print/log partial (incremental) user transcript
+                                # log partial (incremental) user transcript
                                 partial = response.get("delta", "")
                                 logger.info(f"[User partial transcript] {partial}")
 
                             if response.get("type") == "conversation.item.input_audio_transcription.completed":
-                                # Print/log final user transcript and add to conversation history
+                                # log final user transcript and add to conversation history
                                 transcript = response.get("transcript", "")
                                 logger.info(f"[User final transcript] {transcript}")
                                 if transcript:
@@ -329,9 +321,16 @@ async def handle_media_stream(websocket: WebSocket):
                                         logger.info(
                                             f"Function call requested: {fn_name} call_id={call_id}"
                                         )
+                                        # Parse the function arguments
+                                        args = json.loads(fn_args) if fn_args else {}
+                                        
+                                        # Add conversation history to the arguments if it's the create_case function
+                                        if fn_name == 'create_case':
+                                            args['conversation_history'] = conversation_history
+                                        
                                         result = (
                                             await function_call_manager.call_function(
-                                                fn_name, fn_args
+                                                fn_name, json.dumps(args)
                                             )
                                         )
                                         fn_result_event = {

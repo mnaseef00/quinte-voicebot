@@ -21,9 +21,6 @@ class FunctionCallManager:
             "verification_tool": verification_tool,
             "create_case": create_case,
             "get_case": get_case,
-            "classify_email": classify_email,
-            "analyze_sentiment_email": analyze_sentiment_email,
-            "generate_case_summary": generate_case_summary,
             "update_case": update_case,
             "hangup_call": hangup_call,
         }
