@@ -9,6 +9,7 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse
 from twilio.twiml.voice_response import VoiceResponse, Connect, Hangup
+from twilio.rest import Client as TwilioClient
 from loguru import logger
 import aiohttp
 from function_call_manager import FunctionCallManager
@@ -20,11 +21,37 @@ load_dotenv()
 router = APIRouter()
 function_call_manager = FunctionCallManager()
 
+# Initialize Twilio client
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+twilio_client = None
+
+if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+    twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+else:
+    logger.warning("Twilio credentials not found in environment. Call recording will be disabled.")
+
 
 
 @router.api_route("/incoming-call", methods=["GET", "POST"])
 async def handle_incoming_call(request: Request):
     """Handle incoming call and return TwiML response to connect to Media Stream."""
+    form_data = await request.form()
+    call_sid = form_data.get("CallSid")
+    
+    logger.info(f"Incoming call received. Call SID: {call_sid}")
+    
+    # Start recording via Twilio REST API if client is available
+    if call_sid and twilio_client:
+        try:
+            recording = twilio_client.calls(call_sid).recordings.create(
+                recording_status_callback=f"https://{request.url.hostname}/api/v1/twilio/recording-status"
+            )
+            logger.info(f"Started recording for call {call_sid}. Recording SID: {recording.sid}")
+        except Exception as e:
+            logger.error(f"Failed to start recording: {e}")
+    
+    # Create TwiML response
     response = VoiceResponse()
     response.say(
         "Thanks for calling! Please wait while we connect your call to the AI voice assistant"
@@ -35,6 +62,7 @@ async def handle_incoming_call(request: Request):
     connect = Connect()
     connect.stream(url=f"wss://{host}/api/v1/twilio/media-stream")
     response.append(connect)
+    
     return HTMLResponse(content=str(response), media_type="application/xml")
 
 
@@ -183,6 +211,53 @@ async def send_initial_conversation_item(openai_ws):
     await openai_ws.send_str(json.dumps({"type": "response.create"}))
 
 
+@router.api_route("/recording-status", methods=["GET", "POST"])
+async def handle_recording_status(request: Request):
+    """Handle recording status events."""
+    # Print the raw form data for debugging
+    form_data = await request.form()
+    logger.info(f"Recording status raw data: {dict(form_data)}")
+    
+    recording_sid = form_data.get("RecordingSid")
+    recording_status = form_data.get("RecordingStatus")
+    recording_url = form_data.get("RecordingUrl")
+    call_sid = form_data.get("CallSid")
+    
+    logger.info(f"Recording status update for call {call_sid}: {recording_status}")
+    if recording_url:
+        logger.info(f"Recording URL: {recording_url}")
+        
+        # If recording is completed, store the URL or other relevant information
+        if recording_status == "completed":
+            # Here you would typically store the recording URL in a database
+            # For now, we'll just log it prominently
+            logger.info("=========================================")
+            logger.info(f"COMPLETED RECORDING: {recording_url}")
+            logger.info("=========================================")
+    
+    # Return empty response
+    response = VoiceResponse()
+    return HTMLResponse(content=str(response), media_type="application/xml")
+
+
+@router.api_route("/recording-completed", methods=["GET", "POST"])
+async def handle_recording_completed(request: Request):
+    """Handle recording completed events."""
+    form_data = await request.form()
+    recording_sid = form_data.get("RecordingSid")
+    recording_status = form_data.get("RecordingStatus")
+    recording_url = form_data.get("RecordingUrl")
+    call_sid = form_data.get("CallSid")
+    
+    logger.info(f"Recording completed for call {call_sid}: {recording_status}")
+    if recording_url:
+        logger.info(f"Recording URL: {recording_url}")
+    
+    # Return empty response
+    response = VoiceResponse()
+    return HTMLResponse(content=str(response), media_type="application/xml")
+
+
 @router.websocket("/media-stream")
 async def handle_media_stream(websocket: WebSocket):
     """Handle WebSocket connections between Twilio and OpenAI Realtime API."""
@@ -250,7 +325,9 @@ async def handle_media_stream(websocket: WebSocket):
                             logger.info(f"Incoming stream has started. Stream SID: {stream_sid}, Call SID: {incoming_call_sid}")
                             response_start_timestamp_twilio = None
                             latest_media_timestamp = 0
-                            last_assistant_item = None
+                            last_assistant_item = None                          
+                            # We've already started recording in the handle_incoming_call function
+                            logger.info(f"Media stream established for call: {incoming_call_sid}")
                         elif data["event"] == "mark":
                             if mark_queue:
                                 mark_queue.pop(0)
