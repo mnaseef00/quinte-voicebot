@@ -3,9 +3,6 @@ from typing import Any, Dict
 from tools.verification_tool import verification_tool
 from tools.create_case import create_case
 from tools.get_case import get_case
-from tools.classification import classify_email
-from tools.sentiment import analyze_sentiment_email
-from tools.ai_summary import generate_case_summary
 from tools.update_case import update_case
 from tools.hangup_call import hangup_call
 

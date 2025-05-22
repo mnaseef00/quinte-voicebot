@@ -29,8 +29,9 @@ twilio_client = None
 if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
     twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 else:
-    logger.warning("Twilio credentials not found in environment. Call recording will be disabled.")
-
+    logger.warning(
+        "Twilio credentials not found in environment. Call recording will be disabled."
+    )
 
 
 @router.api_route("/incoming-call", methods=["GET", "POST"])
@@ -38,19 +39,21 @@ async def handle_incoming_call(request: Request):
     """Handle incoming call and return TwiML response to connect to Media Stream."""
     form_data = await request.form()
     call_sid = form_data.get("CallSid")
-    
+
     logger.info(f"Incoming call received. Call SID: {call_sid}")
-    
+
     # Start recording via Twilio REST API if client is available
     if call_sid and twilio_client:
         try:
             recording = twilio_client.calls(call_sid).recordings.create(
                 recording_status_callback=f"https://{request.url.hostname}/api/v1/twilio/recording-status"
             )
-            logger.info(f"Started recording for call {call_sid}. Recording SID: {recording.sid}")
+            logger.info(
+                f"Started recording for call {call_sid}. Recording SID: {recording.sid}"
+            )
         except Exception as e:
             logger.error(f"Failed to start recording: {e}")
-    
+
     # Create TwiML response
     response = VoiceResponse()
     response.say(
@@ -62,7 +65,7 @@ async def handle_incoming_call(request: Request):
     connect = Connect()
     connect.stream(url=f"wss://{host}/api/v1/twilio/media-stream")
     response.append(connect)
-    
+
     return HTMLResponse(content=str(response), media_type="application/xml")
 
 
@@ -73,10 +76,11 @@ async def initialize_session(openai_ws):
 ## Complete Customer Support Workflow
 
 ### 1. Initial Greeting and Customer ID Collection
-* Greet the user: "Hi, thanks for calling Quinte FT Support. Please provide your four-digit customer ID."
+* Greet the user: "Hi, thanks for calling Quinte FT Support. Can you please tell me your four-digit customer ID?"
 * Wait for the user to provide their customer ID.
 * Invoke `verification_tool` with `customer_id`.
 * Let the tool's response be `verification_step1`.
+* Be generous in your response and try to provide atleast 3 chances to the user to provide the correct customer ID.
 
 ### 2. Customer ID Verification Processing
 * If `verification_step1.status` is `"customer_not_found"`:
@@ -130,8 +134,17 @@ async def initialize_session(openai_ws):
     * Ask for the ticket number: "Could you please provide the ticket number so I can check the current status for you?"
     * Once the ticket number is provided, immediately invoke the `get_case` tool with the provided `case_number` and inform the user of the current status.
 * Otherwise, if the user shares a new issue or request:
-    * Check if you have sufficient information to create a support ticket:
-        * Clear description of the issue
+    * Gather complete information about the issue by asking focused questions:
+        * Primary issue: What specific problem is the customer experiencing?
+        * Timeline: When did the issue start? Is it recurring or a one-time incident?
+        * Impact: How is this affecting the customer? (e.g., financial impact, service disruption)
+        * Attempted solutions: What has the customer already tried to resolve this?
+        * Financial details: If the issue involves monetary amounts, ask for specific values
+        * Urgency: How time-sensitive is this matter? Does it require immediate attention?
+
+* Continue asking follow-up questions until you have a comprehensive understanding
+* Summarize the collected information back to the customer to verify accuracy
+* If the information is vague or incomplete, politely ask for clarification
     * Once sufficient information is collected:
         * Ask: "Thanks for sharing. Have you created a ticket for this before?"
         * If yes: 
@@ -156,8 +169,9 @@ async def initialize_session(openai_ws):
 * If the user indicates they do not need any more help:
     * Ask: "How would you rate this interaction from 1 to 5?"
     * After receiving the rating, thank the user for their feedback.
-    * Invoke the `hangup_call` tool to end the call.
+    * Invoke the `hangup_call` tool to end the call. But only after telling the user you are ending the call.
 
+IMPORTANT: Do not jump into conclusions, let the user provide the issue description and just ask follow up to gather more details.
     """
     VOICE = "sage"
 
@@ -180,10 +194,8 @@ async def initialize_session(openai_ws):
                 "model": "gpt-4o-mini-transcribe",
                 "language": "en",
             },
-            "input_audio_noise_reduction": {
-                "type": "near_field"
-            },
-            "include": [ 
+            "input_audio_noise_reduction": {"type": "near_field"},
+            "include": [
                 "item.input_audio_transcription.logprobs",
             ],
         },
@@ -217,16 +229,16 @@ async def handle_recording_status(request: Request):
     # Print the raw form data for debugging
     form_data = await request.form()
     logger.info(f"Recording status raw data: {dict(form_data)}")
-    
+
     recording_sid = form_data.get("RecordingSid")
     recording_status = form_data.get("RecordingStatus")
     recording_url = form_data.get("RecordingUrl")
     call_sid = form_data.get("CallSid")
-    
+
     logger.info(f"Recording status update for call {call_sid}: {recording_status}")
     if recording_url:
         logger.info(f"Recording URL: {recording_url}")
-        
+
         # If recording is completed, store the URL or other relevant information
         if recording_status == "completed":
             # Here you would typically store the recording URL in a database
@@ -234,7 +246,7 @@ async def handle_recording_status(request: Request):
             logger.info("=========================================")
             logger.info(f"COMPLETED RECORDING: {recording_url}")
             logger.info("=========================================")
-    
+
     # Return empty response
     response = VoiceResponse()
     return HTMLResponse(content=str(response), media_type="application/xml")
@@ -248,11 +260,11 @@ async def handle_recording_completed(request: Request):
     recording_status = form_data.get("RecordingStatus")
     recording_url = form_data.get("RecordingUrl")
     call_sid = form_data.get("CallSid")
-    
+
     logger.info(f"Recording completed for call {call_sid}: {recording_status}")
     if recording_url:
         logger.info(f"Recording URL: {recording_url}")
-    
+
     # Return empty response
     response = VoiceResponse()
     return HTMLResponse(content=str(response), media_type="application/xml")
@@ -285,12 +297,15 @@ async def handle_media_stream(websocket: WebSocket):
 
     # Conversation history for both user and agent
     conversation_history = []
+
     def print_conversation_history():
         logger.info("Current Conversation History:")
         logger.info(json.dumps(conversation_history, indent=2))
 
     async with aiohttp.ClientSession() as session:
-        openai_ws_url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17"
+        openai_ws_url = (
+            "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17"
+        )
         logger.info(f"Connecting to OpenAI WebSocket: {openai_ws_url}")
         async with session.ws_connect(
             openai_ws_url,
@@ -299,7 +314,7 @@ async def handle_media_stream(websocket: WebSocket):
             await initialize_session(openai_ws)
             # Session state
             stream_sid = None
-            incoming_call_sid = None  
+            incoming_call_sid = None
             latest_media_timestamp = 0
             last_assistant_item = None
             mark_queue = []
@@ -319,15 +334,21 @@ async def handle_media_stream(websocket: WebSocket):
                             }
                             await openai_ws.send_str(json.dumps(audio_append))
                         elif data["event"] == "start":
-                            logger.info(f"Start event data: {json.dumps(data, indent=2)}")
+                            logger.info(
+                                f"Start event data: {json.dumps(data, indent=2)}"
+                            )
                             stream_sid = data["start"].get("streamSid")
                             incoming_call_sid = data["start"].get("callSid")
-                            logger.info(f"Incoming stream has started. Stream SID: {stream_sid}, Call SID: {incoming_call_sid}")
+                            logger.info(
+                                f"Incoming stream has started. Stream SID: {stream_sid}, Call SID: {incoming_call_sid}"
+                            )
                             response_start_timestamp_twilio = None
                             latest_media_timestamp = 0
-                            last_assistant_item = None                          
+                            last_assistant_item = None
                             # We've already started recording in the handle_incoming_call function
-                            logger.info(f"Media stream established for call: {incoming_call_sid}")
+                            logger.info(
+                                f"Media stream established for call: {incoming_call_sid}"
+                            )
                         elif data["event"] == "mark":
                             if mark_queue:
                                 mark_queue.pop(0)
@@ -379,18 +400,28 @@ async def handle_media_stream(websocket: WebSocket):
                                     if item["type"] == "message":
                                         for content in item["content"]:
                                             if content["type"] == "audio":
-                                                transcript = content.get("transcript", "")
+                                                transcript = content.get(
+                                                    "transcript", ""
+                                                )
                                                 if transcript:
-                                                    conversation_history.append({"agent": transcript})
+                                                    conversation_history.append(
+                                                        {"agent": transcript}
+                                                    )
                                                     print_conversation_history()
 
                             # --- Handle OpenAI transcription events ---
-                            if response.get("type") == "conversation.item.input_audio_transcription.delta":
+                            if (
+                                response.get("type")
+                                == "conversation.item.input_audio_transcription.delta"
+                            ):
                                 # log partial (incremental) user transcript
                                 partial = response.get("delta", "")
                                 logger.info(f"[User partial transcript] {partial}")
 
-                            if response.get("type") == "conversation.item.input_audio_transcription.completed":
+                            if (
+                                response.get("type")
+                                == "conversation.item.input_audio_transcription.completed"
+                            ):
                                 # log final user transcript and add to conversation history
                                 transcript = response.get("transcript", "")
                                 logger.info(f"[User final transcript] {transcript}")
@@ -413,14 +444,16 @@ async def handle_media_stream(websocket: WebSocket):
                                         )
                                         # Parse the function arguments
                                         args = json.loads(fn_args) if fn_args else {}
-                                        
+
                                         # Add conversation history to the arguments if it's the create_case function
-                                        if fn_name == 'create_case':
-                                            args['conversation_history'] = conversation_history
+                                        if fn_name == "create_case":
+                                            args["conversation_history"] = (
+                                                conversation_history
+                                            )
                                         # Add call_sid to hangup_call arguments if available
-                                        elif fn_name == 'hangup_call':
-                                            args['call_sid'] = incoming_call_sid
-                                        
+                                        elif fn_name == "hangup_call":
+                                            args["call_sid"] = incoming_call_sid
+
                                         result = (
                                             await function_call_manager.call_function(
                                                 fn_name, json.dumps(args)

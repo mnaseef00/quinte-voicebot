@@ -1,8 +1,20 @@
 {
-    "security_questions": {
-        "1001": {"question": "Who is your childhood friend?", "answer": "alex"},
-        "1002": {"question": "What is your favorite color?", "answer": "white"},
-        "1003": {"question": "What is your favorite bird?", "answer": "parrot"},
-        "1004": {"question": "What is your mother's maiden name?", "answer": "smith"}
+  "security_questions": {
+    "1001": {
+      "question": "Who is your childhood friend?",
+      "answer": "bob"
+    },
+    "1002": {
+      "question": "What is your favorite color?",
+      "answer": "white"
+    },
+    "1003": {
+      "question": "What is your favorite bird?",
+      "answer": "parrot"
+    },
+    "1004": {
+      "question": "What is your mother's maiden name?",
+      "answer": "smith"
     }
+  }
 }

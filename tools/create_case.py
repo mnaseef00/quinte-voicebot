@@ -4,6 +4,8 @@ from simple_salesforce import Salesforce
 import base64
 from urllib.parse import urlparse
 from datetime import datetime
+import threading
+from tools.ai_summary import generate_case_summary
 
 
 def create_case(
@@ -53,8 +55,6 @@ def create_case(
     #     response.raise_for_status()
     #     return response.json()
 
-
-
     def format_internal_comments(subject: str, conversation_history) -> str:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return f"""
@@ -102,6 +102,21 @@ Conversation History:
     case_data_res = dict(sf.Case.get(case_id))
 
     print(f"Case created successfully with ID: {case_id}")
+
+    # Start AI summary generation in a background thread
+    def run_summary_background():
+        try:
+            print(f"Starting background AI summary generation for case: {case_id}")
+            generate_case_summary(case_number=case_id, call_transcript=conversation_history)
+            print(f"Background AI summary generation completed for case: {case_id}")
+        except Exception as e:
+            print(f"Error in background AI summary generation: {e}")
+    
+    # Create and start the background thread
+    summary_thread = threading.Thread(target=run_summary_background)
+    summary_thread.daemon = True  # Thread will exit when main program exits
+    summary_thread.start()
+    print(f"AI summary generation started in background for case: {case_id}")
 
     # Placeholder for attachments
     attachment_files = []

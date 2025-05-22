@@ -7,7 +7,15 @@ client = OpenAI()
 
 # Prompt for the system
 system_prompt = """
-You are a specialized banking email sentiment analysis agent. Your task is to analyze customer emails and provide detailed sentiment analysis focusing on emotional tone, satisfaction levels, and frustration indicators.
+You are a specialized banking email sentiment analysis agent. 
+Your task is to analyze customer support transcripts and provide detailed sentiment analysis focusing on emotional tone, satisfaction levels, and frustration indicators.
+
+Transcript Format:
+[
+    {'user': 'Hello'}, 
+    {'agent': 'Hi, thanks for calling Quinte FT Support'},
+    ...and so on
+]
 
 # Analysis Components
 
@@ -109,18 +117,27 @@ Return analysis in JSON format:
 
 # Example Analysis
 
-Input Email:
-"I've been trying to access my account for 2 days now and keep getting errors. I've called support twice but nothing is fixed. This is unacceptable for my business account!"
+Input Transcript:
+[
+  {"user": "Hi, I need help with my account. I've been locked out for the past two days."}, 
+  {"agent": "I understand that's frustrating. Can you tell me what happens when you try to log in?"},
+  {"user": "It keeps saying my password is incorrect, but I KNOW it's right. I've reset it twice already!"},
+  {"agent": "I apologize for the inconvenience. Let me check what's happening with your account."},
+  {"user": "This is the third time I've had to call about this. My business depends on accessing these accounts daily."},
+  {"agent": "I completely understand the urgency. Let me escalate this to our technical team right away."},
+  {"user": "Fine, but I need this resolved today. I can't keep wasting time on this issue."}  
+]
 
 Example Output:
 {
-  "sentiment_score": -0.6,
+  "sentiment_score": -0.7,
   "primary_tone": "Frustrated",
   "emotional_indicators": {
     "frustration_level": "High",
-    "satisfaction": "Low"
+    "satisfaction": "Low",
+    "urgency": "High"
   },
-  "context_notes": "Multiple failed resolution attempts, business impact mentioned, repeated support contact without resolution"
+  "context_notes": "Multiple failed resolution attempts, business impact explicitly mentioned, repeated support contact without resolution, escalation needed"
 }
 
 #NO MARKDOWN ALLOWED
@@ -140,12 +157,12 @@ class SentimentAnalysis(BaseModel):
     context_notes: str
 
 
-def analyze_sentiment_email(email_text: str) -> dict:
+def analyze_sentiment_transcript(transcript: str) -> dict:
     """
-    Analyze customer banking email and return detailed sentiment insights.
+    Analyze customer support transcript and return detailed sentiment insights.
 
     Args:
-        email_text: The raw text of the customer email.
+        transcript: The raw text of the customer support transcript.
 
     Returns:
         Dictionary with sentiment analysis including score, tone, and emotional indicators.
@@ -154,17 +171,20 @@ def analyze_sentiment_email(email_text: str) -> dict:
         f"OpenAI API Key Loaded: {bool(client.api_key)}"
     )  # Check if API key is perceived by the client
     print("=" * 50)
-    print("::::[TOOL CALLED] ANALYZE EMAIL SENTIMENT::::")
-    print(f"Email Text:: {email_text}")
+    print("::::[TOOL CALLED] ANALYZE CALL SENTIMENT::::")
+    print(f"Transcript:: {transcript}")
     print("=" * 50)
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1-2025-04-14",
             temperature=0.8,
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": email_text},
+                {
+                    "role": "system",
+                    "content": [{"type": "text", "text": system_prompt}],
+                },
+                {"role": "user", "content": [{"type": "text", "text": transcript}]},
             ],
         )
 

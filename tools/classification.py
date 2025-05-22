@@ -1,4 +1,3 @@
-
 from openai import OpenAI
 import json
 from pydantic import BaseModel
@@ -16,13 +15,22 @@ class Classification(BaseModel):
 
 
 prompt = """
-You are an AI assistant tasked with classifying customer emails for a financial institution. Your
-goal is to determine the priority level and assign appropriate tags to each email based on its
+You are an AI assistant tasked with classifying customer support transcripts for a financial institution. Your
+goal is to determine the priority level and assign appropriate tags to each transcript based on its
 content. Here's how to proceed:
 
-1. First, carefully read the following email content.
+1. First, carefully read the following transcript content. The transcript is a conversation between a customer and a financial institution's customer support agent.
 
-2. Determine the priority level of the email. Consider the following criteria:
+2. Determine the priority level of the transcript. Consider the following criteria:
+
+3. Assign appropriate tags to the transcript. Multiple tags can be assigned based on the content.
+
+Transcript Format:
+[
+    {'user': 'Hello'}, 
+    {'agent': 'Hi, thanks for calling Quinte FT Support'},
+    ...and so on
+]
 
 Urgent Priority:
 - Immediate attention required (response needed within hours)
@@ -161,12 +169,12 @@ ensure important issues are not overlooked.
 """
 
 
-def classify_email(email_content: str) -> dict:
+def classify_call(transcript: str) -> dict:
     """
-    Classify a customer email by priority level and assign relevant tags.
+    Classify a customer call by priority level and assign relevant tags.
 
     Args:
-        email_content (str): The content of the customer's email.
+        transcript (str): The transcript of the customer's call.
 
     Returns:
         dict: A dictionary containing classification with priority, tags, justification, and optional confidence.
@@ -177,7 +185,7 @@ def classify_email(email_content: str) -> dict:
     )  # Check if API key is perceived by the client
     print("=" * 50)
     print("::::[TOOL CALLED] EMAIL CLASSIFICATION TOOL::::")
-    print(f"Email Content:\n{email_content}")
+    print(f"Email Content:\n{transcript}")
     print("=" * 50)
 
     try:
@@ -185,8 +193,14 @@ def classify_email(email_content: str) -> dict:
             model="gpt-4o",
             temperature=0.8,
             messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": email_content},
+                {
+                    "role": "system",
+                    "content": [{"type": "text", "text": prompt}],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": transcript}],
+                },
             ],
         )
         content = response.choices[0].message.content  # Correct way to get content
