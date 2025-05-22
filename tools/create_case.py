@@ -100,18 +100,21 @@ Conversation History:
     response = sf.Case.create(case_data)
     case_id = response["id"]
     case_data_res = dict(sf.Case.get(case_id))
+    case_number = case_data_res.get("CaseNumber")
 
     print(f"Case created successfully with ID: {case_id}")
 
     # Start AI summary generation in a background thread
     def run_summary_background():
         try:
-            print(f"Starting background AI summary generation for case: {case_id}")
-            generate_case_summary(case_number=case_id, call_transcript=conversation_history)
-            print(f"Background AI summary generation completed for case: {case_id}")
+            print(f"Starting background AI summary generation for case: {case_number}")
+            generate_case_summary(
+                case_number=case_number, call_transcript=conversation_history
+            )
+            print(f"Background AI summary generation completed for case: {case_number}")
         except Exception as e:
             print(f"Error in background AI summary generation: {e}")
-    
+
     # Create and start the background thread
     summary_thread = threading.Thread(target=run_summary_background)
     summary_thread.daemon = True  # Thread will exit when main program exits
