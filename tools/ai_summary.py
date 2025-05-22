@@ -1,9 +1,9 @@
 import os
 import requests
 import json
-from sentiment import analyze_sentiment_transcript
-from classification import classify_call
-from update_case import update_case
+from tools.sentiment import analyze_sentiment_transcript
+from tools.classification import classify_call
+from tools.update_case import update_case
 
 
 def generate_case_summary(
